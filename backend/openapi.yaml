@@ -1,0 +1,1029 @@
+openapi: 3.0.3
+info:
+  title: Sistema de Geolocalización de Medidores SETAR Yacuiba API
+  description: |
+    API REST para el sistema de geolocalización de medidores de luz de SETAR Yacuiba.
+
+    Permite gestionar usuarios, técnicos, clientes y medidores con coordenadas GPS
+    utilizando PostgreSQL y PostGIS para almacenamiento geoespacial.
+
+    ## Autenticación
+    La mayoría de endpoints requieren un token JWT en el header:
+    ```
+    Authorization: Bearer <token>
+    ```
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: soporte@setar.yba
+
+servers:
+  - url: http://localhost:4000
+    description: Servidor de desarrollo
+
+tags:
+  - name: Auth
+    description: Registro, login y autenticación
+  - name: Usuarios
+    description: Gestión de usuarios del sistema
+  - name: Técnicos
+    description: Gestión de técnicos de campo
+  - name: Clientes
+    description: Gestión de clientes de SETAR
+  - name: Medidores
+    description: Gestión de medidores con geolocalización
+  - name: Health
+    description: Estado del servicio
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Verifica que el servicio esté activo y la base de datos conectada
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/usuarios:
+    get:
+      tags: [Usuarios]
+      summary: Listar usuarios
+      description: Lista todos los usuarios del sistema con paginación
+      operationId: listUsuarios
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: rol
+          in: query
+          description: Filtrar por rol (admin, tecnico)
+          schema:
+            type: string
+            enum: [admin, tecnico]
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Lista paginada de usuarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Usuarios]
+      summary: Crear usuario
+      operationId: createUsuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUsuarioRequest'
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/usuarios/{id}:
+    get:
+      tags: [Usuarios]
+      summary: Obtener usuario
+      operationId: getUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/usuarioId'
+      responses:
+        '200':
+          description: Detalle del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Usuarios]
+      summary: Actualizar usuario
+      operationId: updateUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/usuarioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUsuarioRequest'
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Usuarios]
+      summary: Eliminar usuario
+      operationId: deleteUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/usuarioId'
+      responses:
+        '204':
+          description: Usuario eliminado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tecnicos:
+    get:
+      tags: [Técnicos]
+      summary: Listar técnicos
+      operationId: listTecnicos
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Lista de técnicos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TecnicoListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Técnicos]
+      summary: Crear técnico
+      operationId: createTecnico
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTecnicoRequest'
+      responses:
+        '201':
+          description: Técnico creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tecnico'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tecnicos/{id}:
+    get:
+      tags: [Técnicos]
+      summary: Obtener técnico
+      operationId: getTecnico
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/tecnicoId'
+      responses:
+        '200':
+          description: Detalle del técnico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tecnico'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Técnicos]
+      summary: Actualizar técnico
+      operationId: updateTecnico
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/tecnicoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTecnicoRequest'
+      responses:
+        '200':
+          description: Técnico actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tecnico'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Técnicos]
+      summary: Eliminar técnico
+      operationId: deleteTecnico
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/tecnicoId'
+      responses:
+        '204':
+          description: Técnico eliminado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/clientes:
+    get:
+      tags: [Clientes]
+      summary: Listar clientes
+      operationId: listClientes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: search
+          in: query
+          description: Buscar por nombre, email o NIT
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de clientes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Clientes]
+      summary: Crear cliente
+      operationId: createCliente
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClienteRequest'
+      responses:
+        '201':
+          description: Cliente creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/clientes/{id}:
+    get:
+      tags: [Clientes]
+      summary: Obtener cliente
+      operationId: getCliente
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/clienteId'
+      responses:
+        '200':
+          description: Detalle del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Clientes]
+      summary: Actualizar cliente
+      operationId: updateCliente
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/clienteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClienteRequest'
+      responses:
+        '200':
+          description: Cliente actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Clientes]
+      summary: Eliminar cliente
+      operationId: deleteCliente
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/clienteId'
+      responses:
+        '204':
+          description: Cliente eliminado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/medidores:
+    get:
+      tags: [Medidores]
+      summary: Listar medidores
+      description: Lista medidores con su ubicación geográfica (latitud/longitud)
+      operationId: listMedidores
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: tipo
+          in: query
+          description: Tipo de medidor (Luz, Agua, Gas)
+          schema:
+            type: string
+        - name: cliente_id
+          in: query
+          schema:
+            type: integer
+        - name: latitud
+          in: query
+          description: Filtrar por latitud cercana
+          schema:
+            type: number
+        - name: longitud
+          in: query
+          description: Filtrar por longitud cercana
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Lista de medidores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedidorListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Medidores]
+      summary: Crear medidor
+      description: Crea un medidor con coordenadas GPS para geolocalización
+      operationId: createMedidor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMedidorRequest'
+      responses:
+        '201':
+          description: Medidor creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medidor'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/medidores/{id}:
+    get:
+      tags: [Medidores]
+      summary: Obtener medidor
+      operationId: getMedidor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/medidorId'
+      responses:
+        '200':
+          description: Detalle del medidor con ubicación GPS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medidor'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Medidores]
+      summary: Actualizar medidor
+      operationId: updateMedidor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/medidorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMedidorRequest'
+      responses:
+        '200':
+          description: Medidor actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medidor'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Medidores]
+      summary: Eliminar medidor
+      operationId: deleteMedidor
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/medidorId'
+      responses:
+        '204':
+          description: Medidor eliminado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    usuarioId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    tecnicoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    clienteId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    medidorId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: No autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflicto (recurso duplicado)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        ts:
+          type: string
+          format: date-time
+          description: Timestamp de la respuesta
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        rol:
+          type: string
+          enum: [admin, tecnico]
+        activo:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [email, password, nombre, apellido]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        nombre:
+          type: string
+        apellido:
+          type: string
+        telefono:
+          type: string
+        rol:
+          type: string
+          enum: [admin, tecnico]
+          default: tecnico
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT válido por 8 horas
+        usuario:
+          $ref: '#/components/schemas/Usuario'
+
+    CreateUsuarioRequest:
+      type: object
+      required: [email, password, nombre, apellido, rol]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        nombre:
+          type: string
+        apellido:
+          type: string
+        telefono:
+          type: string
+        rol:
+          type: string
+          enum: [admin, tecnico]
+
+    UpdateUsuarioRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        rol:
+          type: string
+          enum: [admin, tecnico]
+        activo:
+          type: boolean
+
+    UsuarioListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Usuario'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Tecnico:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        especialidad:
+          type: string
+          description: Especialidad del técnico (Electricista, Técnico en medidores, etc.)
+        activo:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTecnicoRequest:
+      type: object
+      required: [nombre, apellido, email]
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        especialidad:
+          type: string
+
+    UpdateTecnicoRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        especialidad:
+          type: string
+        activo:
+          type: boolean
+
+    TecnicoListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tecnico'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Cliente:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        direccion:
+          type: string
+          description: Dirección física del cliente
+        nit:
+          type: string
+          description: Número de Identificación Tributaria
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateClienteRequest:
+      type: object
+      required: [nombre, apellido, email]
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        direccion:
+          type: string
+        nit:
+          type: string
+
+    UpdateClienteRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        telefono:
+          type: string
+        direccion:
+          type: string
+        nit:
+          type: string
+
+    ClienteListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Cliente'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Medidor:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero_serie:
+          type: string
+          description: Número de serie único del medidor
+        tipo:
+          type: string
+          enum: [Luz]
+          description: Tipo de medidor
+        marca:
+          type: string
+        modelo:
+          type: string
+        cliente_id:
+          type: integer
+          description: ID del cliente propietario
+        latitud:
+          type: number
+          format: double
+          description: Coordenada GPS - Latitud
+          example: -22.456789
+        longitud:
+          type: number
+          format: double
+          description: Coordenada GPS - Longitud
+          example: -63.123456
+        activo:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateMedidorRequest:
+      type: object
+      required: [numero_serie, tipo, cliente_id, latitud, longitud]
+      properties:
+        numero_serie:
+          type: string
+        tipo:
+          type: string
+          enum: [Luz]
+        marca:
+          type: string
+        modelo:
+          type: string
+        cliente_id:
+          type: integer
+        latitud:
+          type: number
+          format: double
+          description: Coordenada GPS - Latitud
+        longitud:
+          type: number
+          format: double
+          description: Coordenada GPS - Longitud
+
+    UpdateMedidorRequest:
+      type: object
+      properties:
+        numero_serie:
+          type: string
+        tipo:
+          type: string
+          enum: [ Luz ]
+        marca:
+          type: string
+        modelo:
+          type: string
+        cliente_id:
+          type: integer
+        latitud:
+          type: number
+          format: double
+        longitud:
+          type: number
+          format: double
+        activo:
+          type: boolean
+
+    MedidorListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medidor'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer

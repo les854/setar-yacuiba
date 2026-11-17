@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16
+    container_name: setar-db
+    environment:
+      POSTGRES_DB: sistema_medidores
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql
+
+  backend:
+    build: ./backend
+    container_name: setar-backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: sistema_medidores
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+      JWT_SECRET: setar_yacuiba_secret_2026
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: setar-frontend
+    ports:
+      - "8095:80"
+    depends_on:
+      - backend
